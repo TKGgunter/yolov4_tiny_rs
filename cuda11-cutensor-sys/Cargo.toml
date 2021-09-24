@@ -1,0 +1,24 @@
+[package]
+name = "cuda11-cutensor-sys"
+version = "0.1.0"
+authors = ["yguan <yguan@example.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# links = "cuda"
+build = "build.rs"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+bindgen = { version = "0.54", optional = true }
+
+[dev-dependencies]
+cuda11-cuda-sys = { path = "../cuda11-cuda-sys", version = "0.1" }
+cuda11-cudart-sys = { path = "../cuda11-cudart-sys", version = "0.1" }
+
+[features]
+default = ["generate"]
+generate = ["bindgen"]
