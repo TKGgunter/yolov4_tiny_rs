@@ -1,3 +1,0 @@
-cargo:rustc-link-search=native=/usr/local/cuda/lib64
-cargo:rustc-link-lib=dylib=cudart
-cargo:rerun-if-changed=build.rs
