@@ -1,0 +1,1 @@
+{"rustc":18145874729619535536,"features":"","target":0,"profile":0,"path":0,"deps":[[9405064673690389352,"build_script_build",false,1931862976122613974]],"local":[{"RerunIfChanged":{"output":"debug/build/cuda11-cudart-sys-abaa56cf9a81a393/output","paths":["build.rs"]}}],"rustflags":[],"metadata":0,"config":0,"compile_kind":0}

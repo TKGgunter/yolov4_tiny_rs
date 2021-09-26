@@ -1,0 +1,3 @@
+cargo:rerun-if-changed=build.rs
+cargo:rustc-cfg=lexerror_display
+cargo:rustc-cfg=hygiene
