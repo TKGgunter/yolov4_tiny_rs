@@ -1,4 +1,5 @@
 /target
+**/target
 **/yolov4_tiny_tg
 **/*.swp
 **/*.swo
