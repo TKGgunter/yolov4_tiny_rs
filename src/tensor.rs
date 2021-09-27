@@ -1,17 +1,13 @@
 
 
 use crate::{cuda_error, tensor_error};
-use crate::model::*;
 use cuda11_cudnn_sys::*;
 
-use cuda11_cutensor_sys::{cutensorGetErrorString, cutensorInit, cutensorHandle_t, 
-cutensorTensorDescriptor_t, cutensorOperator_t_CUTENSOR_OP_IDENTITY, cutensorOperator_t_CUTENSOR_OP_SIGMOID, cutensorOperator_t_CUTENSOR_OP_EXP, cutensorOperator_t_CUTENSOR_OP_ADD, cutensorOperator_t_CUTENSOR_OP_MUL, cutensorInitTensorDescriptor, cutensorElementwiseBinary};
+use cuda11_cutensor_sys::{cutensorGetErrorString, cutensorHandle_t, cutensorTensorDescriptor_t, cutensorOperator_t_CUTENSOR_OP_IDENTITY, cutensorOperator_t_CUTENSOR_OP_SIGMOID, cutensorOperator_t_CUTENSOR_OP_EXP, cutensorOperator_t_CUTENSOR_OP_ADD, cutensorOperator_t_CUTENSOR_OP_MUL, cutensorInitTensorDescriptor, cutensorElementwiseBinary};
 
 
 
 use std::ptr::{null, null_mut};
-use std::mem::size_of;
-use std::mem::transmute;
 
 
 
@@ -29,7 +25,14 @@ impl Default for GpuTensorTensor{
 }
 
 impl GpuTensorTensor{
-    //TODO drop
+    pub fn drop(&mut self){
+        if self.init == false{
+            println!("This struct was not init in the standard fashion. 
+                      This may result in an error during the drop.");
+        }
+        cuda_error!(cudaFree(self.data));
+    }
+
     pub fn new()->Self{
         GpuTensorTensor{
             init: false,
@@ -40,7 +43,7 @@ impl GpuTensorTensor{
     }
     pub fn size_bytes(&self)->usize{
         let mut x = 4;
-        for (i, it) in self.dims.iter().enumerate(){
+        for it in self.dims.iter(){
             x *= *it;
         }
         x as _

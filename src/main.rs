@@ -1,21 +1,21 @@
+#![allow(dead_code)]
+
 extern crate stb_image_write_sys;
 extern crate stb_image_sys;
 extern crate stb_resize_sys;
 extern crate cuda11_cudnn_sys;
 extern crate cuda11_cutensor_sys;
 extern crate cuda11_cublasLt_sys;
+extern crate clap;
 
 mod numpy;
 mod dnn;
 mod model;
 mod tensor;
 
-use std::env;
 use std::fs::File;
 use std::io::prelude::*;
-use std::ptr::{null, null_mut};
-use std::mem::size_of;
-use std::mem::transmute;
+use std::ptr::null_mut;
 
 use stb_image_sys::stbi_load_from_memory_32bit;
 use stb_resize_sys::stbir_resize_float;
@@ -29,6 +29,7 @@ use dnn::*;
 use dnn::cudaMalloc;
 use model::*;
 use tensor::*;
+use clap::{Arg, App};
 
 
 
@@ -82,25 +83,41 @@ pub(crate) use _break_loop;
 
 
 fn main() {
-    println!("Hello, world!");
+
+    let opts = App::new("yolov4-tiny-rs")
+                     .version("1.0")
+                     .author("Thoth G. <thothgunter@live.com>")
+                     .about("Applies the yolo algorithm to provided image and produces an image with the according labels and bounding boxes.")
+                     .arg(Arg::with_name("INPUT")
+                          .help("Sets the input file.")
+                          .required(true)
+                          .index(1))
+                     .arg(Arg::with_name("output")
+                          .short("o")
+                          .long("output")
+                          .value_name("FILE")
+                          .help("Sets the output file's name.")
+                          .takes_value(true))
+                     .get_matches();
+
+
+
+    //FUTURE
+    //TODO let user define output type with post fix.
     let default_out_file_name = "out.png";
 
-    //TODO 
-    //FUTURE use some cool tool to make this nicer for users
-    let args : Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        println!("Too few args.");
-        return;
-    } 
 
-    let input_file  = &args[1];
+    let input_file  = opts.value_of("INPUT").unwrap();
     let mut output_file = default_out_file_name;
 
-    if args.len() < 3 {
-        println!("Output file name was not set. Default output file name: {:?}", default_out_file_name);
-    } else {
-        output_file = &args[2];
+    match opts.value_of("output").as_ref() {
+        Some(x) => { output_file = x; },
+        None => { 
+            println!("Output file name was not set. Default output file name: {:?}", default_out_file_name); 
+        }
     }
+
+
 
     //TODO
     //load file
@@ -219,7 +236,7 @@ fn main() {
     b3.batchnorm.set_est_var(&layers[5].arrays[3].data);
 
 
-    let mut csp1 = CspBlock::construct_yolo(dnn_handle, &b3.output, (104, 104, 128)); 
+    let mut csp1 = CspBlock::construct_yolo(&b3.output, (104, 104, 128)); 
     csp1.load_weights([&layers[6], &layers[7]], [&layers[8], &layers[9]], [&layers[10], &layers[11]]);
 
 
@@ -245,7 +262,7 @@ fn main() {
     b4.batchnorm.set_est_var(&layers[14].arrays[3].data);
 
 
-    let mut csp2 = CspBlock::construct_yolo(dnn_handle, &b4.output, (52, 52, 256)); 
+    let mut csp2 = CspBlock::construct_yolo(&b4.output, (52, 52, 256)); 
     csp2.load_weights([&layers[15], &layers[16]], [&layers[17], &layers[18]], [&layers[19], &layers[20]]);
 
 
@@ -267,7 +284,7 @@ fn main() {
     b5.batchnorm.set_est_var(&layers[23].arrays[3].data);
     
 
-    let mut csp3 = CspBlock::construct_yolo(dnn_handle, &b5.output, (26, 26, 512)); 
+    let mut csp3 = CspBlock::construct_yolo(&b5.output, (26, 26, 512)); 
     csp3.load_weights([&layers[24], &layers[25]], [&layers[26], &layers[27]], [&layers[28], &layers[29]]);
 
     let mut maxpooling3_output = GpuTensor::construct(13, 13, 512);
@@ -435,7 +452,7 @@ fn main() {
     /////////////////////////////////////
     //decoding block
 
-    fn construct_ndtensor_descriptors( dims: &[i32], strides: &[i32])->cudnnTensorDescriptor_t{unsafe{
+    fn construct_ndtensor_descriptors( dims: &[i32], strides: &[i32])->cudnnTensorDescriptor_t{
 
         let mut rt : cudnnTensorDescriptor_t = null_mut();
         dnn_error!(cudnnCreateTensorDescriptor(&mut rt as _));
@@ -449,7 +466,7 @@ fn main() {
         )); 
 
         rt
-    }}
+    }
 
     //////////////////
     //13x13 block
@@ -485,7 +502,7 @@ fn main() {
 
 
     let mut cpu_dwdh_anchors_13 = NumpyArray::new();
-    cpu_dwdh_anchors_13.from_file(&mut File::open("data/anchors_1").expect("anchors_1"));
+    cpu_dwdh_anchors_13.from_file(&mut File::open("data/anchors_1").expect("anchors_1")).expect("Could not get anchors from file.");
     cpu_dwdh_anchors_13.print_dataf32(None);
 
 
@@ -506,8 +523,8 @@ fn main() {
 
     let dims    = [nxn,nxn,3,1];
     let strides = [3*nxn*_nc,3*_nc, _nc, 1];
-    let mut from_conf_desc13 = construct_ndtensor_descriptors(&dims, &org_strides13);
-    let mut conf_desc13 = construct_ndtensor_descriptors(&dims, &strides);
+    let from_conf_desc13 = construct_ndtensor_descriptors(&dims, &org_strides13);
+    let conf_desc13 = construct_ndtensor_descriptors(&dims, &strides);
 
 
 
@@ -518,15 +535,15 @@ fn main() {
     let mut conf_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
     let mut prob_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
-    let mut from_prob_desc13 = construct_ndtensor_descriptors(&dims, &org_strides13);
-    let mut prob_desc13 = construct_ndtensor_descriptors(&dims, &strides);
+    let from_prob_desc13 = construct_ndtensor_descriptors(&dims, &org_strides13);
+    let prob_desc13 = construct_ndtensor_descriptors(&dims, &strides);
 
 
     let mut prob_ttensor_out_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
 
     let mut cpu_xygrid_13 = NumpyArray::new();
-    cpu_xygrid_13.from_file(&mut File::open("data/xygrid_13").expect("xygrid_13"));
+    cpu_xygrid_13.from_file(&mut File::open("data/xygrid_13").expect("xygrid_13")).expect("Could not get xy grids from file.");
 
     let mut xygrid_13_data : *mut std::ffi::c_void = null_mut(); 
     cuda_error!(cudaMalloc(&mut xygrid_13_data, (4*nxn*nxn*3*2) as _));
@@ -564,7 +581,7 @@ fn main() {
 
 
     let mut cpu_dwdh_anchors_26 = NumpyArray::new();
-    cpu_dwdh_anchors_26.from_file(&mut File::open("data/anchors_0").expect("anchors_0"));
+    cpu_dwdh_anchors_26.from_file(&mut File::open("data/anchors_0").expect("anchors_0")).expect("Could not get anchors from file.");
 
 
     let mut anchors_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Identity);
@@ -582,8 +599,8 @@ fn main() {
 
     let dims    = [nxn,nxn,3,1];
     let strides = [3*nxn*_nc,3*_nc, _nc, 1];
-    let mut from_conf_desc26 = construct_ndtensor_descriptors(&dims, &org_strides26);
-    let mut conf_desc26 = construct_ndtensor_descriptors(&dims, &strides);
+    let from_conf_desc26 = construct_ndtensor_descriptors(&dims, &org_strides26);
+    let conf_desc26 = construct_ndtensor_descriptors(&dims, &strides);
 
 
 
@@ -592,15 +609,15 @@ fn main() {
     let mut conf_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
     let mut prob_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
-    let mut from_prob_desc26 = construct_ndtensor_descriptors(&dims, &org_strides26);
-    let mut prob_desc26 = construct_ndtensor_descriptors(&dims, &strides);
+    let from_prob_desc26 = construct_ndtensor_descriptors(&dims, &org_strides26);
+    let prob_desc26 = construct_ndtensor_descriptors(&dims, &strides);
 
 
     let mut prob_ttensor_out_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
 
     let mut cpu_xygrid_26 = NumpyArray::new();
-    cpu_xygrid_26.from_file(&mut File::open("data/xygrid_26").expect("xygrid_26"));
+    cpu_xygrid_26.from_file(&mut File::open("data/xygrid_26").expect("xygrid_26")).expect("Could not get xy grids from file.");
 
     let mut xygrid_26_data : *mut std::ffi::c_void = null_mut(); 
     cuda_error!(cudaMalloc(&mut xygrid_26_data, (4*nxn*nxn*3*2) as _));
@@ -803,9 +820,14 @@ fn main() {
           //pred_xy = STRIDES[i] * ( tf.sigmoid(conv_raw_dxdy) * XYSCALE[i] - 0.5 * 
           //(XYSCALE[i] - 1) + xy_grid)
 
+            println!("{:?}", unsafe{ cuda11_cutensor_sys::cutensorGetVersion()});
+            println!("{:?} {:?}", &dxdy_ttensor_13.descriptor.fields, &dxdy_ttensor_ones_13.descriptor.fields);
+            println!("{:?}", unsafe{std::mem::transmute::<i64, [i32;2]>(dxdy_ttensor_13.descriptor.fields[3])});
+            println!("{:?}", unsafe{std::mem::transmute::<i64, [i32;2]>(dxdy_ttensor_13.descriptor.fields[4])});
             calc_elementwise_binary(&cutensor_handle, cuda_stream, &dim_labels, &dxdy_ttensor_13, 
                                     &mut dxdy_ttensor_ones_13, Some(&mut dxdy_ttensor_out_13), GpuTensorOps::Add,
                                     1.05, 1f32);
+            //panic!();
 
 
             calc_elementwise_binary(&cutensor_handle, cuda_stream, &dim_labels, 
@@ -952,6 +974,40 @@ fn main() {
     }
 
     write_png(output_file, org_img_width, org_img_height, 3, &org_img_data, 3*org_img_width); 
+
+    b1.drop();
+    b2.drop();
+    b3.drop();
+
+    csp1.drop();
+    b4.drop();
+
+    csp2.drop();
+    b5.drop();
+
+    csp3.drop();
+    b6.drop();
+
+    l_b1.drop();
+    l_b2.drop();
+    bbox.drop();
+    bbox_output.drop();
+
+    u_b1.drop();
+    u_b2.drop();
+    mbbox.drop();
+    mbbox_output.drop();
+
+    dxdy_ttensor_13.drop();
+    dxdy_ttensor_ones_13.drop();
+    dxdy_ttensor_out_13.drop();
+    anchors_ttensor_13.drop();
+
+    dxdy_ttensor_26.drop();
+    dxdy_ttensor_ones_26.drop();
+    dxdy_ttensor_out_26.drop();
+    anchors_ttensor_26.drop();
+
 
     cuda_error!(cudaFree(workspace));
     cuda_error!(cudaStreamDestroy(cuda_stream));

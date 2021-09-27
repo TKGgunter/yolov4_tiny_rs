@@ -4,8 +4,7 @@ use crate::model::*;
 
 use cuda11_cudnn_sys;
 use cuda11_cudnn_sys::*;
-use std::ptr::{null, null_mut};
-use std::mem::size_of;
+use std::ptr::null_mut;
 use std::mem::transmute;
 
 
@@ -14,10 +13,11 @@ pub fn print_alloc(){unsafe{
     println!("mb alloc: {}", ALLOC_COUNTER / 1_000_000);
 }}
 
-pub unsafe fn cudaMalloc(data: *mut *mut std::ffi::c_void, bytes: usize)->cudaError{unsafe{
+#[allow(non_snake_case)]
+pub unsafe fn cudaMalloc(data: *mut *mut std::ffi::c_void, bytes: usize)->cudaError{
     ALLOC_COUNTER += bytes;
     cuda11_cudnn_sys::cudaMalloc(data, bytes as _)
-}}
+}
 
 
 pub struct GpuTensorConfig{
@@ -127,47 +127,48 @@ impl GpuTensor{
 
     }
 
-    pub fn set_data(&mut self, input: &[f32]){unsafe{
+    pub fn set_data(&mut self, input: &[f32]){
 
         let size = input.len() * 4;
-        let _input = transmute::<_, &[u8]>(input);
+        let _input = unsafe{ transmute::<_, &[u8]>(input) };
         cuda_error!(cudaMemcpy(self.data, _input.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
-    pub fn fill_with_scalar(&mut self, handle: cudnnHandle_t, input: f32){unsafe{
+    }
+
+    pub fn fill_with_scalar(&mut self, handle: cudnnHandle_t, input: f32){
         dnn_error!(cudnnSetTensor(
             handle,
             self.descriptor,
             self.data,
             (&input as *const f32) as _,
         ));
-    }}
+    }
 
-    pub fn set_data_bytes(&mut self, input: &[u8]){unsafe{
+    pub fn set_data_bytes(&mut self, input: &[u8]){
 
         let size = input.len();
         cuda_error!(cudaMemcpy(self.data, input.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
-    pub fn return_data(&self)->Vec<f32>{unsafe{
+    pub fn return_data(&self)->Vec<f32>{
         let size = self.size();
         let mut output = vec![0f32; size];
         self.get_data(&mut output);
 
         return output;
-    }}
+    }
 
-    pub fn get_data(&self, output: &mut [f32]){unsafe{
+    pub fn get_data(&self, output: &mut [f32]){
         let size = output.len() * 4;
-        let mut _output = transmute::<_, &mut [u8]>(output);
+        let mut _output = unsafe{ transmute::<_, &mut [u8]>(output) };
         cuda_error!(cudaMemcpy(_output.as_mut_ptr() as _, self.data, size, 
                                cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    }}
+    }
 
-    fn get_data_bytes(&self, output: &mut [u8]){unsafe{
+    fn get_data_bytes(&self, output: &mut [u8]){
         let size = output.len();
         cuda_error!(cudaMemcpy(output.as_mut_ptr() as _, self.data, size, 
                                cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    }}
+    }
 }
 
 pub struct GpuActivationLayer{
@@ -179,12 +180,12 @@ pub struct GpuActivationLayer{
 
 
 impl GpuActivationLayer {
-    pub fn drop(&mut self){unsafe{
+    pub fn drop(&mut self){
         dnn_error!(cudnnDestroyActivationDescriptor(self.descriptor));
         if self.alt_descriptor != null_mut(){
             dnn_error!(cudnnDestroyActivationDescriptor(self.alt_descriptor));
         }
-    }}
+    }
 
     pub fn construct(activation: GpuDnnActivation)->Self{
         let mut a = GpuActivationLayer::new();
@@ -201,7 +202,7 @@ impl GpuActivationLayer {
         }
     }
 
-    fn initialize(&mut self, activation: GpuDnnActivation){unsafe{
+    fn initialize(&mut self, activation: GpuDnnActivation){
         dnn_error!(cudnnCreateActivationDescriptor(&mut self.descriptor));
 
         self.activation = activation;
@@ -236,10 +237,10 @@ impl GpuActivationLayer {
                 ));
             }
         }
-    }}
+    }
 
     fn calc(&self, dnn_handle: cudnnHandle_t, workspace: *mut std::ffi::c_void, workspace_size: usize, 
-            output: &mut GpuTensor){unsafe{
+            output: &mut GpuTensor){
 
         match self.activation {
             GpuDnnActivation::Softmax => {
@@ -325,7 +326,7 @@ impl GpuActivationLayer {
                 ));
             }
         }
-    }}
+    }
 }
 
 
@@ -376,7 +377,7 @@ pub struct GpuConv{
 
 
 impl GpuConv{
-    pub fn drop(&mut self){unsafe{
+    pub fn drop(&mut self){
         
         if self.init != true {
             println!("A convNN was not init in a standard fashion. 
@@ -399,10 +400,10 @@ impl GpuConv{
             ));
         }
         self.bias.drop();
-    }}
+    }
     pub fn construct(in_channels: usize, out_channels: usize, 
                   kernel_width: usize, kernel_height: usize,  
-                  mut activation: GpuDnnActivation, input_tensor_descriptor: cudnnTensorDescriptor_t, 
+                  activation: GpuDnnActivation, input_tensor_descriptor: cudnnTensorDescriptor_t, 
                   convolution_params: ConvParams)->Self{
 
         let mut c = GpuConv::new();
@@ -440,7 +441,7 @@ impl GpuConv{
     pub fn initialize(&mut self, in_channels: usize, out_channels: usize, 
                   kernel_width: usize, kernel_height: usize,  
                   mut activation: GpuDnnActivation, input_tensor_descriptor: cudnnTensorDescriptor_t, 
-                  convolution_params: ConvParams){unsafe{
+                  convolution_params: ConvParams){
 
         self.init = true;
         let cvp = convolution_params;
@@ -544,19 +545,19 @@ impl GpuConv{
             perfResults: *mut cudnnConvolutionFwdAlgoPerf_t,
         ) -> cudnnStatus_t;
         */
-    }}
+    }
 
 
-    pub fn set_bias(&mut self, data: &[u8]){unsafe{
+    pub fn set_bias(&mut self, data: &[u8]){
         if self.bias.data == null_mut(){
             println!("Bias data has not been allocated.");
         }
         let size = data.len();
         cuda_error!(cudaMemcpy(self.bias.data, data.as_ptr() as _, size, 
                     cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
-    pub fn set_kernel(&mut self, data: &[u8]){unsafe{
+    pub fn set_kernel(&mut self, data: &[u8]){
         if self.kernel_descriptor == null_mut(){
             println!("Kernel descriptor has not been allocated.");
         }
@@ -567,11 +568,13 @@ impl GpuConv{
         let mut h : i32 = 0;
         let mut w : i32 = 0;
         let mut c : i32 = 0;
+        let mut data_type = cudnnDataType_t_CUDNN_DATA_FLOAT;
+        let mut tensor_organization = cudnnTensorFormat_t_CUDNN_TENSOR_NHWC; 
 
         dnn_error!(cudnnGetFilter4dDescriptor(
             self.kernel_descriptor, 
-            &mut cudnnDataType_t_CUDNN_DATA_FLOAT,
-            &mut cudnnTensorFormat_t_CUDNN_TENSOR_NHWC,
+            &mut data_type,
+            &mut tensor_organization, 
             &mut k, 
             &mut c,
             &mut h,
@@ -584,10 +587,10 @@ impl GpuConv{
         }
 
         cuda_error!(cudaMemcpy(self.kernel, data.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
 
-    pub fn calc(&self, dnn_handle: cudnnHandle_t, workspace: *mut std::ffi::c_void, workspace_size: usize, input: &GpuTensor, output: &mut GpuTensor){unsafe{
+    pub fn calc(&self, dnn_handle: cudnnHandle_t, workspace: *mut std::ffi::c_void, workspace_size: usize, input: &GpuTensor, output: &mut GpuTensor){
 
         if self.init != true{
             panic!("GpuConv has not been initialized.");
@@ -660,7 +663,6 @@ impl GpuConv{
                 //NOTE checking workspace size.
                 //TODO if workspace is to small maybe allow a realloc? 
                 if workspace_size < (4 * output.size()){
-                    panic!("{:?}", &output.dims); 
                     panic!("Workspace is too small. {} < {}", workspace_size, 4*output.size()); 
                 }
 
@@ -713,7 +715,7 @@ impl GpuConv{
             _=>{ }
         }
 
-    }}
+    }
 }
 
 
@@ -732,14 +734,14 @@ pub struct GpuBatchNorm{
 
 }
 impl GpuBatchNorm {
-    pub fn drop(&mut self){unsafe{
+    pub fn drop(&mut self){
         dnn_error!(cudnnDestroyTensorDescriptor(self.descriptor));
 
         cuda_error!(cudaFree(self.scale));
         cuda_error!(cudaFree(self.bias));
         cuda_error!(cudaFree(self.est_mean));
         cuda_error!(cudaFree(self.est_var));
-    }}
+    }
 
     pub fn construct(channels: usize, epsilon: f32)->Self{
         let mut b = GpuBatchNorm::new();
@@ -762,28 +764,28 @@ impl GpuBatchNorm {
         }
     }
 
-    pub fn set_scale(&mut self, data: &[u8]){unsafe{
+    pub fn set_scale(&mut self, data: &[u8]){
         let size = data.len();
         cuda_error!(cudaMemcpy(self.scale, data.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
-    pub fn set_bias(&mut self, data: &[u8]){unsafe{
+    pub fn set_bias(&mut self, data: &[u8]){
         let size = data.len();
         cuda_error!(cudaMemcpy(self.bias, data.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
-    pub fn set_est_mean(&mut self, data: &[u8]){unsafe{
+    pub fn set_est_mean(&mut self, data: &[u8]){
         let size = data.len();
         cuda_error!(cudaMemcpy(self.est_mean, data.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
-    pub fn set_est_var(&mut self, data: &[u8]){unsafe{
+    pub fn set_est_var(&mut self, data: &[u8]){
         let size = data.len();
         cuda_error!(cudaMemcpy(self.est_var, data.as_ptr() as _, size, cudaMemcpyKind::cudaMemcpyHostToDevice));
-    }}
+    }
 
 
-    pub fn initialize(&mut self, channels: usize, epsilon: f32){unsafe{
+    pub fn initialize(&mut self, channels: usize, epsilon: f32){
 
         self.descriptor = {
             let mut descriptor : cudnnTensorDescriptor_t = null_mut();
@@ -804,11 +806,11 @@ impl GpuBatchNorm {
         cuda_error!(cudaMalloc(&mut self.bias, 4*channels));
         cuda_error!(cudaMalloc(&mut self.est_mean, 4*channels));
         cuda_error!(cudaMalloc(&mut self.est_var, 4*channels));
-    }}
+    }
 
-    pub fn calc(&self, dnn_handle: cudnnHandle_t, input: &mut GpuTensor, _output: Option<&mut GpuTensor>, ){unsafe{
+    pub fn calc(&self, dnn_handle: cudnnHandle_t, input: &mut GpuTensor, _output: Option<&mut GpuTensor>, ){
 
-        let (mut output_descriptor, mut output_data) = match _output {
+        let (output_descriptor, output_data) = match _output {
             Some(op)=>{(op.descriptor, op.data)},
             None=>{(input.descriptor, input.data)},
 
@@ -829,7 +831,7 @@ impl GpuBatchNorm {
             self.est_var, //: *const ::libc::c_void,
             self.epsilon as _ ,//: f64,
         ));
-    }}
+    }
 }
 
 
@@ -913,7 +915,7 @@ pub struct GpuPooling{
 
 
 impl GpuPooling {
-    pub fn drop(&mut self){unsafe{
+    pub fn drop(&mut self){
         if self.descriptor == null_mut() {
             return;
         }
@@ -921,14 +923,14 @@ impl GpuPooling {
             self.descriptor,
         ));
         
-    }}
+    }
     pub fn new()->Self{
         GpuPooling{
             descriptor: null_mut(),
         }
     }
 
-    pub fn initialize(&mut self, width: i32, height: i32, vertical_stride: i32, horizontal_stride: i32){unsafe{
+    pub fn initialize(&mut self, width: i32, height: i32, vertical_stride: i32, horizontal_stride: i32){
         dnn_error!(cudnnCreatePoolingDescriptor(
             &mut self.descriptor,
         ));
@@ -943,9 +945,9 @@ impl GpuPooling {
             vertical_stride, //verticalStride: ::libc::c_int,   
             horizontal_stride, //horizontalStride: ::libc::c_int,
         ));
-    }}
+    }
 
-    pub fn calc(&self, handle: cudnnHandle_t, input: &GpuTensor, output: &mut GpuTensor){unsafe{
+    pub fn calc(&self, handle: cudnnHandle_t, input: &GpuTensor, output: &mut GpuTensor){
         dnn_error!(cudnnPoolingForward(
             handle,
             self.descriptor,
@@ -956,7 +958,7 @@ impl GpuPooling {
             output.descriptor, //yDesc: cudnnTensorDescriptor_t,
             output.data, //y: *mut ::libc::c_void,
         ));
-    }}
+    }
 }
 
 
@@ -973,7 +975,7 @@ pub struct CspBlock{
 }
 
 impl CspBlock{
-    pub fn drop(&mut self){unsafe{
+    pub fn drop(&mut self){
         dnn_error!(cudnnDestroyTensorDescriptor(self._input_split_descriptor));
         dnn_error!(cudnnDestroyTensorDescriptor(self._intermediate_concat_descriptor2));
 
@@ -984,13 +986,12 @@ impl CspBlock{
         self.concat_c1_c2.drop();
         self.output.drop();
 
-    }}
+    }
 
-    pub fn construct_yolo(dnn_handle: cudnnHandle_t, input_tensor: &GpuTensor,
-    output_shape: (usize, usize, usize))->Self{unsafe{
+    pub fn construct_yolo(input_tensor: &GpuTensor, output_shape: (usize, usize, usize))->Self{
 
-        let mut concat_c1_c2 = GpuTensor::construct(output_shape.0, output_shape.1, output_shape.2/2);
-        let mut input_split_tensor = GpuTensor::construct(output_shape.0, output_shape.1, input_tensor.dims[2]/2);
+        let concat_c1_c2 = GpuTensor::construct(output_shape.0, output_shape.1, output_shape.2/2);
+        let input_split_tensor = GpuTensor::construct(output_shape.0, output_shape.1, input_tensor.dims[2]/2);
 
         let c1 =  ConvolutionBlock::construct_yolo((3, 3), 
                                                    (1, 1), 
@@ -1016,7 +1017,7 @@ impl CspBlock{
 
         dnn_error!(cudnnCreateTensorDescriptor(&mut rt._input_split_descriptor));
         {
-            let _c = (input_tensor.dims[2]/2);
+            let _c = input_tensor.dims[2]/2;
             let _h = output_shape.1;
             let _w = output_shape.0;
 
@@ -1036,7 +1037,7 @@ impl CspBlock{
 
         dnn_error!(cudnnCreateTensorDescriptor(&mut rt._intermediate_concat_descriptor2));
         {
-            let _c = (input_tensor.dims[2]);
+            let _c = input_tensor.dims[2];
             let _h = output_shape.1;
             let _w = output_shape.0;
 
@@ -1065,13 +1066,12 @@ impl CspBlock{
 
 
         rt
-    }}
+    }
 
     pub fn load_weights(&mut self, c1: [&Layer; 2], c2: [&Layer; 2], c3: [&Layer; 2]){
 
-        //TODO verify the layer type
         match c1[0]._type {
-            LayerType::Conv2D(a)=>{
+            LayerType::Conv2D(_)=>{
             },
             _=>{panic!("c1: expected a Conv2d layer");}
         }
@@ -1122,7 +1122,7 @@ impl CspBlock{
     
     }
 
-    pub fn calc(&mut self, dnn_handle: cudnnHandle_t, workspace: *mut std::ffi::c_void, workspace_size: usize, input: &GpuTensor){unsafe{
+    pub fn calc(&mut self, dnn_handle: cudnnHandle_t, workspace: *mut std::ffi::c_void, workspace_size: usize, input: &GpuTensor){
 
         //Step 1: Split data
         dnn_error!(cudnnTransformTensor(
@@ -1148,11 +1148,11 @@ impl CspBlock{
 
         //Step 5: concat orig inputs with c3 output
         concat_tensor(dnn_handle, input, &self.c3.output, &mut self.output, self._intermediate_concat_descriptor2, self._intermediate_concat_descriptor2);
-    }}
+    }
 }
 
 
-pub fn concat_tensor(dnn_handle: cudnnHandle_t, input1: &GpuTensor, input2: &GpuTensor, output: &mut GpuTensor, intermediate_descriptor1: cudnnTensorDescriptor_t, intermediate_descriptor2: cudnnTensorDescriptor_t){unsafe{
+pub fn concat_tensor(dnn_handle: cudnnHandle_t, input1: &GpuTensor, input2: &GpuTensor, output: &mut GpuTensor, intermediate_descriptor1: cudnnTensorDescriptor_t, intermediate_descriptor2: cudnnTensorDescriptor_t){
 
     if input1.dims[2] + input2.dims[2] != output.dims[2] {
         panic!("Dimensions are not correct input1:{:?}, input2:{:?}, output:{:?}", input1.dims, input2.dims, output.dims);
@@ -1178,5 +1178,5 @@ pub fn concat_tensor(dnn_handle: cudnnHandle_t, input1: &GpuTensor, input2: &Gpu
       output.data.offset((input1.dims[2]*4) as _),
     ));
 
-}}
+}
 

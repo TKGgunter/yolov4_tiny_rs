@@ -206,7 +206,7 @@ pub fn load_layers(file_name: &str)->Vec<Layer>{
             _break_loop!( f.read_exact(_n_arrays) );
         }
 
-        for i in 0..n_arrays {
+        for _i in 0..n_arrays {
             let mut array = NumpyArray::new();
             match array.from_file(&mut f) {
                 Ok(())=>(),

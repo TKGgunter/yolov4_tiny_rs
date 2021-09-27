@@ -1,7 +1,6 @@
 
 use std::fs::File;
 use std::io::prelude::*;
-use std::mem::size_of;
 use std::mem::transmute;
 
 
@@ -26,6 +25,9 @@ impl NumpyArray{
     //TODO should be a mut ref and use the indexing impl to make things easy for user.
     pub fn get(&self, i: usize)->f32{unsafe{
         let l = self.data.len();
+        if i >= l {
+            panic!("index: {} is out of range.", i);
+        }
         let a = transmute::<&[u8], &[f32]>(&self.data);
         a[i]
         
@@ -104,7 +106,6 @@ impl NumpyArray{
         
         if false {
         //TODO this is for testing purposes
-        unsafe{
             println!("array values: ");
             let bytes_to_load = {
                 let mut a = 1;
@@ -118,7 +119,6 @@ impl NumpyArray{
             let mut _data = std::slice::from_raw_parts( self.data.as_ptr() as *const f32, bytes_to_load as _ );
             println!("{:?}", (self.ndims, &self.dims, self._type, &_data[..5]));
         }
-        }
         return Ok(());
     }}
     pub fn load_data(file_name: &str)->Vec<Self>{
@@ -127,7 +127,7 @@ impl NumpyArray{
 
 
         let mut rt = vec![];
-        loop/*still more bytes to read*/{unsafe{
+        loop/*still more bytes to read*/{
             let mut array = NumpyArray::new();
 
             match array.from_file(&mut f){
@@ -135,7 +135,7 @@ impl NumpyArray{
                 _=>(),
             }
             rt.push(array);
-        }}
+        }
 
         if false {
         //TODO this is for testing purposes
