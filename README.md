@@ -7,7 +7,7 @@ This is a minimal implementation which only preforms inference.
 The original paper for YOLOv4 can be found here: https://arxiv.org/abs/2004.10934
 The author's personal site can be found here: https://pjreddie.com/darknet/yolo/
 
-#Setup
+# Setup
 Compile and run this software Nvidia's cuda, cutensor, cudnn, and cublas libraries must be installed.
 The software uses CUDA 11.4.
 On windows it is expected that the relevant binaries can be found in `C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.4\\lib\\x64\\` . 
@@ -19,7 +19,7 @@ The weights can be found [here](https://1drv.ms:443/u/s!BGiQd8FswuzLsDKbg_p66EcX
 Once downloaded place the weights `yolov4_tiny_tg` in the data folder.
 
 
-#Run
+# Run
 NOTE: while the linux version compiles it does not complete the inference phase. This issue is currently being investigated and hopefully corrected soon.
 To run `cargo run (--release) <input_file_name> -o <optional_output_file_name>`.
 The output file will render any bounding boxes, class names and confidence scores to a copy of the original image.
@@ -27,7 +27,7 @@ The output file will render any bounding boxes, class names and confidence score
 ![Inference Image](out.png)
 
 
-#TODO
+# TODO
 - user defined score criteria
 - Fix linux implementation
 - implement macOs implementation
