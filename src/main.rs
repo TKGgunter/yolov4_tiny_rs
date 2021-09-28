@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+extern crate stb_tt_sys;
 extern crate stb_image_write_sys;
 extern crate stb_image_sys;
 extern crate stb_resize_sys;
@@ -20,6 +21,7 @@ use std::ptr::null_mut;
 use stb_image_sys::stbi_load_from_memory_32bit;
 use stb_resize_sys::stbir_resize_float;
 use stb_image_write_sys::write_png;
+use crate::stb_tt_sys::*;
 
 use cuda11_cudnn_sys::*;
 use cuda11_cutensor_sys::{cutensorGetErrorString, cutensorInit, cutensorHandle_t, };
@@ -125,7 +127,7 @@ fn main() {
     let mut buffer_f32 = vec![0f32; 416*416*3];
     let org_img_width;
     let org_img_height;
-    let mut org_img_data = vec![];
+    let mut org_img = Image{w: 0, h: 0, buffer: Vec::new()};
 
     {//Load and prep input data
         println!("Loading: {}", input_file);
@@ -136,6 +138,12 @@ fn main() {
         file.read_to_end(&mut file_buffer).expect("Could not read to end of file.");
         let img = stbi_load_from_memory_32bit(&file_buffer).expect("could not load image");
 
+        //TODO redundant
+        org_img.w = img.width; 
+        org_img.h = img.height;
+        org_img_width = img.width;
+        org_img_height = img.height;
+
 
         let mut i = 0;
         let mut _buffer_f32 = vec![0f32; img.buffer.len()];
@@ -144,13 +152,11 @@ fn main() {
             if (_i+1) % 4 == 0 { continue; }
 
             _buffer_f32[i] = img.buffer[_i] as f32 / 255f32;
-            org_img_data.push(img.buffer[_i]);
+            org_img.buffer.push(img.buffer[_i]);
 
             i += 1;
         }
 
-        org_img_width = img.width;
-        org_img_height = img.height;
 
         let error = unsafe{
                       stbir_resize_float( _buffer_f32.as_ptr(), img.width, img.height, 
@@ -503,7 +509,6 @@ fn main() {
 
     let mut cpu_dwdh_anchors_13 = NumpyArray::new();
     cpu_dwdh_anchors_13.from_file(&mut File::open("data/anchors_1").expect("anchors_1")).expect("Could not get anchors from file.");
-    cpu_dwdh_anchors_13.print_dataf32(None);
 
 
     let mut anchors_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Identity);
@@ -820,10 +825,6 @@ fn main() {
           //pred_xy = STRIDES[i] * ( tf.sigmoid(conv_raw_dxdy) * XYSCALE[i] - 0.5 * 
           //(XYSCALE[i] - 1) + xy_grid)
 
-            println!("{:?}", unsafe{ cuda11_cutensor_sys::cutensorGetVersion()});
-            println!("{:?} {:?}", &dxdy_ttensor_13.descriptor.fields, &dxdy_ttensor_ones_13.descriptor.fields);
-            println!("{:?}", unsafe{std::mem::transmute::<i64, [i32;2]>(dxdy_ttensor_13.descriptor.fields[3])});
-            println!("{:?}", unsafe{std::mem::transmute::<i64, [i32;2]>(dxdy_ttensor_13.descriptor.fields[4])});
             calc_elementwise_binary(&cutensor_handle, cuda_stream, &dim_labels, &dxdy_ttensor_13, 
                                     &mut dxdy_ttensor_ones_13, Some(&mut dxdy_ttensor_out_13), GpuTensorOps::Add,
                                     1.05, 1f32);
@@ -915,45 +916,56 @@ fn main() {
 
 
     //TODO do better mask
-    let mut bounding_boxes : Vec::<[f32; 5]> = vec![];
+    
+    let mut scores_and_bboxes : Vec::<ScoreBoundingBox> = vec![];
+    //TODO remove mask and just iterate over indices
     let mut mask = vec![false; (26*26+13*13)*3];
     for i in 0..mask.len(){
+
         for j in 0..number_classes{
             let a = prob_final.get(i*80+j);
+
             if a > 0.4 {
                 mask[i] = true;
-                println!("true? {} {} {:?} {:?}", j, a, 
-                                                (xy_final.get(i*2+j), xy_final.get(i*2+j+1)),
-                                                (wh_final.get(i*2+j), wh_final.get(i*2+j+1)));
-                let _box = [a, 
-                            xy_final.get(i*2+j)/416f32, xy_final.get(i*2+j+1)/416f32,  
-                            wh_final.get(i*2+j)/416f32, wh_final.get(i*2+j+1)/416f32];
-                bounding_boxes.push(_box);
-                break;
+
+                let rect = {
+                    let w = wh_final.get(i*2+j)/416f32;
+                    let h = wh_final.get(i*2+j+1)/416f32;
+
+                    let x = xy_final.get(i*2+j)/416f32 - w/2f32; 
+                    let y = xy_final.get(i*2+j+1)/416f32 - h/2f32;  
+
+                    [x,y,w,h]
+                };
+
+                scores_and_bboxes.push(ScoreBoundingBox{ score: a, bounding_box: rect, class: j });
             }
         }
     }
 
     //NOTE
     //draw new image.
+    change_font(&FONT_NOTOSANS).expect("");
 
     let classes = ["person","bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple","sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "potted plant", "bed", "dining table", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"];
 
+    let scores_and_bboxes = soft_nms(scores_and_bboxes, 0.5);
 
-    print_alloc();
+    println!("{:?}", &scores_and_bboxes);
     //NOTE draw bounding box
-    for it in bounding_boxes.iter(){
-        let [percent, xf32, yf32, wf32, hf32] = *it;
+    for it in scores_and_bboxes.iter(){
+        if it.score < 0.6 { continue; }
+        let [xf32, yf32, wf32, hf32] = it.bounding_box;
 
-        let x = (xf32 * org_img_width as f32) as usize;
-        let w = (wf32 * org_img_width as f32) as usize;
-        let y = (yf32 * org_img_height as f32) as usize;
-        let h = (hf32 * org_img_height as f32) as usize;
+        let x = (xf32.max(0f32).min(1f32) * org_img_width as f32) as usize;
+        let w = (wf32.max(0f32).min(1f32) * org_img_width as f32) as usize;
+        let y = (yf32.max(0f32).min(1f32) * org_img_height as f32) as usize;
+        let h = (hf32.max(0f32).min(1f32) * org_img_height as f32) as usize;
 
-        let x0 = x - w/2;
-        let x1 = x + w/2;
-        let y0 = y - h/2;
-        let y1 = y + h/2;
+        let x0 = x;
+        let x1 = (x + w).min(org_img_width as usize);
+        let y0 = y;
+        let y1 = (y + h).min(org_img_height as usize);
 
         let color = [250, 0, 0];
 
@@ -963,18 +975,20 @@ fn main() {
                 && (j > x0+2 && j < x1-2){
                     continue;
                 }
-                org_img_data[ 3*(i*(org_img_width as usize) + j) + 0] = color[0];
-                org_img_data[ 3*(i*(org_img_width as usize) + j) + 1] = color[1];
-                org_img_data[ 3*(i*(org_img_width as usize) + j) + 2] = color[2];
+                org_img.buffer[ 3*(i*(org_img_width as usize) + j) + 0] = color[0];
+                org_img.buffer[ 3*(i*(org_img_width as usize) + j) + 1] = color[1];
+                org_img.buffer[ 3*(i*(org_img_width as usize) + j) + 2] = color[2];
 
                 //put color
             }
         }
-
+        draw_string( &mut org_img, classes[it.class], x0 as i32, y0 as i32, [1f32, 0f32, 0f32, 1f32], 24f32);
+        draw_string( &mut org_img, &format!("{:.2}", it.score), x0 as i32 + 12, y0 as i32+12, [0f32, 0f32, 1f32, 1f32], 18f32);
     }
 
-    write_png(output_file, org_img_width, org_img_height, 3, &org_img_data, 3*org_img_width); 
+    write_png(output_file, org_img_width, org_img_height, 3, &org_img.buffer, 3*org_img_width); 
 
+    print_alloc();
     b1.drop();
     b2.drop();
     b3.drop();
@@ -1017,6 +1031,223 @@ fn main() {
 
 
 
+pub fn overlap_rect_area(rect1: [f32;4], rect2: [f32;4])->f32{
+    let ol_x = f32::max(0f32, f32::min(rect1[0]+rect1[2], rect2[0]+rect2[2]) - f32::max(rect1[0], rect2[0]));
+    let ol_y = f32::max(0f32, f32::min(rect1[1]+rect1[3], rect2[1]+rect2[3]) - f32::max(rect1[1], rect2[1]));
 
+    return ol_x * ol_y;
+}
+pub fn union_rect_area(rect1: [f32;4], rect2: [f32;4])->f32{
+    let a1 = rect1[2] * rect1[3];
+    let a2 = rect2[2] * rect2[3];
+
+    let ov = overlap_rect_area(rect1, rect2);
+    if ov <= 0f32 {
+        return 0f32;
+    }
+
+    let union_area = a1+a2-ov;
+    return union_area;
+}
+
+pub fn soft_nms(mut input: Vec<ScoreBoundingBox>, iou_score: f32 )->Vec<ScoreBoundingBox>{
+     let mut rt = Vec::new();
+     while input.len() > 0 {
+        //
+        let mut max_s = 0f32;
+        let mut max_s_index = 9999;
+
+        for (i, it) in input.iter().enumerate(){
+            if it.score >= max_s {
+                max_s_index = i;
+                max_s = it.score;
+            }
+        }
+
+        let b = input.remove(max_s_index);
+        for it in input.iter_mut(){
+            let intersection = overlap_rect_area(b.bounding_box, it.bounding_box);
+            if intersection <= 0f32 {
+                continue;
+            }
+            let union = union_rect_area(b.bounding_box, it.bounding_box);
+            let iou = intersection/union;
+
+            if iou > iou_score {
+                it.score = (1f32 - iou) * it.score;
+            }
+        } 
+        rt.push(b);
+     }
+
+     rt
+}
+
+#[derive(Debug)]
+pub struct ScoreBoundingBox{
+    pub score: f32,
+    pub bounding_box: [f32;4],
+    pub class: usize,
+}
+
+pub struct Image{
+    w: i32,
+    h: i32,
+    buffer: Vec::<u8>,
+}
+
+//TODO
+static mut GLOBAL_FONTINFO    : stbtt_fontinfo  = new_stbtt_fontinfo();
+static mut FONT_BUFFER        : Vec<u8> = Vec::new();
+const FONT_NOTOSANS : &[u8] = std::include_bytes!("../assets/NotoSans-Regular.ttf");//TODO better pathing maybe
+
+pub fn change_font(buffer: &[u8])->Result<(), &str>{unsafe{
+
+
+    FONT_BUFFER.clear(); 
+    FONT_BUFFER.extend_from_slice(buffer);
+   
+    if stbtt_InitFont(&mut GLOBAL_FONTINFO as *mut stbtt_fontinfo, FONT_BUFFER.as_ptr(), 0) == 0{
+        println!("font was not able to load.");
+        return Err("Font was not able to be loaded.");
+    }
+    return Ok(());
+}}
+
+/// Draws the provided character to the canvas. `size` is rounded to the nearest integer. 
+/// Returns character width in pixels.
+pub fn draw_char( canvas: &mut Image, character: char, mut x: i32, mut y: i32,
+             color: [f32; 4], mut size: f32 )->i32{unsafe{
+
+    //NOTE Check that globalfontinfo has been set
+    if GLOBAL_FONTINFO.data == null_mut() {
+        println!("Global font has not been set.");
+        return -1;
+    }
+
+
+    let dpmm_ratio = 1f32;
+
+    size = size.round();
+    let dpmm_size = (dpmm_ratio * size).round();
+
+    x = (dpmm_ratio * x as f32).round() as _;
+    y = (dpmm_ratio * y as f32).round() as _;
+
+
+    //Construct a char buffer
+    let char_buffer;
+    let cwidth;
+    let cheight;
+    let scale;
+    {
+        let mut x0 = 0i32;
+        let mut x1 = 0i32;
+        let mut y0 = 0i32;
+        let mut y1 = 0i32;
+        let mut ascent = 0;
+        let mut descent = 0;
+
+
+        stbtt_GetFontVMetrics(&mut GLOBAL_FONTINFO as *mut stbtt_fontinfo,
+                              &mut ascent as *mut i32,
+                              &mut descent as *mut i32, null_mut());
+        scale = stbtt_ScaleForPixelHeight(&GLOBAL_FONTINFO as *const stbtt_fontinfo, dpmm_size);
+        let baseline = (ascent as f32 * scale ) as i32;
+
+        cwidth = (scale * (ascent - descent) as f32 ) as usize + 4; //NOTE buffer term should be reduced.
+        cheight = (scale * (ascent - descent) as f32 ) as usize + 4;//NOTE buffer term should be reduced.
+
+
+        let glyph_index = stbtt_FindGlyphIndex(&GLOBAL_FONTINFO as *const stbtt_fontinfo, character as i32);
+        
+        //TODO remove this, it is not nessary for this application
+        char_buffer = {
+            let mut _char_buffer = vec![0u8; cwidth * cheight];
+            stbtt_GetGlyphBitmapBoxSubpixel(&GLOBAL_FONTINFO as *const stbtt_fontinfo, glyph_index, scale, scale, 0.0,0.0,
+                                                    &mut x0 as *mut i32,
+                                                    &mut y0 as *mut i32,
+                                                    &mut x1 as *mut i32,
+                                                    &mut y1 as *mut i32);
+            stbtt_MakeGlyphBitmapSubpixel( &GLOBAL_FONTINFO as *const stbtt_fontinfo,
+                                           &mut _char_buffer[cwidth*(baseline + y0) as usize + (5 + x0) as usize ] as *mut u8,
+                                           x1-x0+2, y1-y0, cwidth as i32, scale, scale,0.0, 0.0, glyph_index);
+            _char_buffer
+        };
+
+    }
+
+    //NOTE
+    //The character will not render if invisible.
+    
+    if character as u8 > 0x20{   //render char_buffer to main_buffer
+        let buffer = &mut canvas.buffer;
+        let gwidth = canvas.w as isize;
+        let gheight = canvas.h as isize;
+        let offset = (x as isize + y as isize * gwidth);
+
+
+        let a = color[3];
+        let orig_r = color[0] * a;
+        let orig_g = color[1] * a;
+        let orig_b = color[2] * a;
+
+
+
+
+        let y_is = y as isize;
+        let x_is = x as isize;
+        for i in 0..cheight as isize{
+            if i + y_is > gheight {continue;}
+            if i + y_is <= 0 {continue;}
+
+            for j in 0..cwidth as isize{
+
+                if (j + i*gwidth + offset) > gwidth * gheight {continue;}
+
+                if j + x_is  > gwidth {continue;}
+                if j + x_is  <= 0 {continue;}
+
+                let mut text_alpha = char_buffer[j as usize + cwidth * (i as usize )] as f32;
+                //let mut text_alpha = char_buffer[j as usize + cwidth * (cheight - 1 - i as usize)] as f32;
+                let r = (orig_r * text_alpha) as u8;
+                let g = (orig_g * text_alpha) as u8;
+                let b = (orig_b * text_alpha) as u8;
+
+                if 3*(j + i*gwidth + offset) as usize + 3 > buffer.len() {
+                    continue;
+                }
+                let dst_rgb = &mut buffer[3*(j + i*gwidth + offset) as usize.. 3*(j + i*gwidth + offset) as usize + 3];
+
+                text_alpha = (255.0 - text_alpha * a) / 255.0;
+                
+                dst_rgb[0] = r + ( dst_rgb[0] as f32 * text_alpha ) as u8;
+                dst_rgb[1] = g + ( dst_rgb[1] as f32 * text_alpha ) as u8;
+                dst_rgb[2] = b + ( dst_rgb[2] as f32 * text_alpha ) as u8;
+
+
+            }
+        }
+    }
+
+    let mut adv : i32 = 0;
+    let mut lft_br : i32 = 0; // NOTE: Maybe remove this
+    stbtt_GetCodepointHMetrics(&GLOBAL_FONTINFO as *const stbtt_fontinfo, character as i32, &mut adv as *mut i32, &mut lft_br as *mut i32);
+    return (adv as f32 * scale) as i32;
+}}
+
+
+/// Draws the string to the canvas provided. Returns string width in pixels.
+/// Position values x and y are indicate where the string will begin.
+/// NOTE there is about a 4 pixel buffer between x and the first pixel the function is able to draw
+/// to.
+pub fn draw_string( canvas: &mut Image, string: &str, x: i32, y: i32,
+             color: [f32; 4], size: f32 )->i32{
+    let mut offset = 0;
+    for it in string.chars(){
+        offset += draw_char(canvas, it, x + offset, y, color, size);
+    }
+    return offset;
+}
 
 
