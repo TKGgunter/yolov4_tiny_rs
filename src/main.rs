@@ -190,7 +190,12 @@ fn main() {
 
 
     //NOTE
-    //setup yolov4
+    //setup yolov4 
+    //TODO this sould be done with a result.
+    {
+        File::open("data/yolov4_tiny_tg").expect("Yolov4_tiny weight file could not be found. Please download the weight file, https://1drv.ms:443/u/s!BGiQd8FswuzLsDKbg_p66EcXf1LZ?e=IvV84ojpWUGq-sUIK0jDnw&at=9, and place the file in the data directory.");
+    }
+
     let layers = load_layers("data/yolov4_tiny_tg");
 
     let mut input_tensor = GpuTensor::new();
@@ -925,7 +930,7 @@ fn main() {
         for j in 0..number_classes{
             let a = prob_final.get(i*80+j);
 
-            if a > 0.4 {
+            if a > 0.5 {
                 mask[i] = true;
 
                 let rect = {
@@ -951,10 +956,10 @@ fn main() {
 
     let scores_and_bboxes = soft_nms(scores_and_bboxes, 0.5);
 
-    println!("{:?}", &scores_and_bboxes);
     //NOTE draw bounding box
     for it in scores_and_bboxes.iter(){
-        if it.score < 0.6 { continue; }
+        println!("{:?}", it);
+        if it.score < 0.3 { continue; }
         let [xf32, yf32, wf32, hf32] = it.bounding_box;
 
         let x = (xf32.max(0f32).min(1f32) * org_img_width as f32) as usize;
