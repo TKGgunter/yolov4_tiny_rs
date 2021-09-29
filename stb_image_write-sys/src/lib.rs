@@ -8,7 +8,8 @@ extern{
 }
 
 pub fn write_png(filename: &str, w: i32, h: i32, channels: i32, data: &[u8], stride_in_bytes: i32){unsafe{
-     let error = stbi_write_png(std::ffi::CString::new(filename).unwrap().as_ptr() as _, w, h, 
+     let path = std::ffi::CString::new(filename).unwrap();
+     let error = stbi_write_png(path.as_ptr() as _, w, h, 
                                 channels, (data.as_ptr() as *const u8) as _, stride_in_bytes);
 
      //TODO handle error properly

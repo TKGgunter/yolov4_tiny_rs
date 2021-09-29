@@ -1,0 +1,14 @@
+[package]
+name = "stb_tt-sys"
+version = "0.1.0"
+authors = ["TKGgunter <thothgunter@live.com>"]
+edition = "2018"
+build   = "stb_tt/build.rs"
+links = "stb_truetype"
+
+[dependencies]
+
+
+[build-dependencies]
+cc = "1.0"
+pkg-config = "0.3"

@@ -328,6 +328,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "stb_tt-sys"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "pkg-config",
+]
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -428,4 +436,5 @@ dependencies = [
  "stb_image-sys",
  "stb_image_write-sys",
  "stb_resize-sys",
+ "stb_tt-sys",
 ]

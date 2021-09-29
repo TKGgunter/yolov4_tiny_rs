@@ -3,3 +3,5 @@
 **/yolov4_tiny_tg
 **/*.swp
 **/*.swo
+**/*.jpg
+**/*.png

@@ -15,4 +15,5 @@ cuda11-cudnn-sys = { path = "cuda11-cudnn-sys", version = "0.1" }
 stb_image-sys = { path = "stb_image-sys" }
 stb_resize-sys = { path = "stb_resize-sys" }
 stb_image_write-sys = { path = "stb_image_write-sys" }
+stb_tt-sys = { path = "stb_tt-sys" }
 clap = "2.33"
