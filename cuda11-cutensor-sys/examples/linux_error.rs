@@ -82,21 +82,21 @@ fn main(){unsafe{
 
         (&1f32 as *const f32) as _,
         x1_data,
-        &x1_descriptor,
+        (&x1_descriptor) as *const cutensorTensorDescriptor_t,
         dim_labels.as_ptr() as _,
 
         (&1f32 as *const f32) as _,
         x2_data,
-        &x2_descriptor,
+        (&x2_descriptor) as *const cutensorTensorDescriptor_t,
         dim_labels.as_ptr() as _,
 
         y_data,
-        &x2_descriptor,
+        (&x2_descriptor) as *const cutensorTensorDescriptor_t,
         dim_labels.as_ptr(), 
 
         cutensorOperator_t_CUTENSOR_OP_ADD,
-        cuda11_cutensor_sys::cudaDataType_t::CUDA_R_32F,
-        cuda_stream as _,
+        cudaDataType_t::CUDA_R_32F,
+        cuda_stream,
     );
     if err != 0 {
         println!("Error elementwise binary: {:?}", err);
