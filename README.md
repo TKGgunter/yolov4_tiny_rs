@@ -6,6 +6,7 @@ This is a minimal implementation which only preforms inference.
 
 The original paper for YOLOv4 can be found here: https://arxiv.org/abs/2004.10934
 The author's personal site can be found here: https://pjreddie.com/darknet/yolo/
+<!--- https://github.com/AlexeyAB/darknet -->
 
 # Setup
 To compile and run Nvidia's cuda, cutensor, cudnn, and cublas libraries must be installed.

@@ -498,7 +498,7 @@ impl GpuConv{
         self.activation = activation;
         match self.activation {
             GpuDnnActivation::Softmax => {
-                activation = GpuDnnActivation::Default;
+                //TODO activation = GpuDnnActivation::Default;
                 panic!("tensor conv softmax activation has not been handled yet.");
             },
             GpuDnnActivation::LeakyRelu => {
