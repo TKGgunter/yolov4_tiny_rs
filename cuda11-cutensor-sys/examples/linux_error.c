@@ -31,7 +31,7 @@ int main(int n_arg, char** arg){
     int bytes = 0;
     //TODO
     for( int i = 0; i < 4; i++ ){
-        bytes += dims[i];
+        bytes *= dims[i];
     }
     bytes *= 4;
 
