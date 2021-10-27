@@ -4,6 +4,10 @@
 
 
 int main(int n_arg, char** arg){
+
+    printf("rt version %li\n", cutensorGetCudartVersion());
+    printf("cutensor version %li\n", cutensorGetVersion());
+
     cudaStream_t cuda_stream = NULL;
     int err = cudaStreamCreate(&cuda_stream);
     if( err != 0 ){
@@ -28,12 +32,11 @@ int main(int n_arg, char** arg){
     int dim_labels[4] = {1, 2, 3, 4};
     int64_t dims[4] = {2, 2, 2, 2};
 
-    int bytes = 0;
+    int bytes = 4;
     //TODO
     for( int i = 0; i < 4; i++ ){
-        bytes += dims[i];
+        bytes *= dims[i];
     }
-    bytes *= 4;
 
     cutensorTensorDescriptor_t x1_descriptor = {}; //cutensorTensorDescriptor_t{ fields: [0i64; 72usize] };
     cutensorTensorDescriptor_t x2_descriptor = {}; //cutensorTensorDescriptor_t{ fields: [0i64; 72usize] };
@@ -46,7 +49,8 @@ int main(int n_arg, char** arg){
         dims,
         NULL,
         CUDA_R_32F,
-        CUTENSOR_OP_SIGMOID
+        CUTENSOR_OP_IDENTITY
+        //CUTENSOR_OP_SIGMOID
     );
 
     if( err != 0 ){
