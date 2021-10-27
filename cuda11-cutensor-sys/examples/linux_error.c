@@ -33,7 +33,6 @@ int main(int n_arg, char** arg){
     int64_t dims[4] = {2, 2, 2, 2};
 
     int bytes = 4;
-    //TODO
     for( int i = 0; i < 4; i++ ){
         bytes *= dims[i];
     }
