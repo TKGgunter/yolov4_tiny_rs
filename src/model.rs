@@ -1,12 +1,5 @@
 use crate::numpy::*;
 use crate::dnn::*;
-use crate::cuda11_cudnn_sys::{cudnnActivationMode_t_CUDNN_ACTIVATION_SIGMOID,
-                              cudnnActivationMode_t_CUDNN_ACTIVATION_RELU,
-                              cudnnActivationMode_t_CUDNN_ACTIVATION_TANH,
-                              cudnnActivationMode_t_CUDNN_ACTIVATION_IDENTITY,
-                              cudnnActivationMode_t_CUDNN_ACTIVATION_CLIPPED_RELU,
-                              cudnnActivationMode_t_CUDNN_ACTIVATION_ELU,
-                             };
 use crate::cuda11_cublasLt_sys::{cublasLtEpilogue_t_CUBLASLT_EPILOGUE_DEFAULT,
                                  cublasLtEpilogue_t_CUBLASLT_EPILOGUE_RELU,
                                  cublasLtEpilogue_t_CUBLASLT_EPILOGUE_BIAS,
@@ -29,20 +22,6 @@ pub enum LayerTypei32{
 }
 
 
-
-#[derive(PartialEq, Clone, Copy, Debug)]
-pub enum GpuDnnActivation{
-    Sigmoid = cudnnActivationMode_t_CUDNN_ACTIVATION_SIGMOID as isize,
-    Relu    = cudnnActivationMode_t_CUDNN_ACTIVATION_RELU as isize,
-    Tan     = cudnnActivationMode_t_CUDNN_ACTIVATION_TANH as isize,
-    ClippedRelu = cudnnActivationMode_t_CUDNN_ACTIVATION_CLIPPED_RELU as isize,
-    Elu         = cudnnActivationMode_t_CUDNN_ACTIVATION_ELU as isize,
-    Default     = cudnnActivationMode_t_CUDNN_ACTIVATION_IDENTITY as isize,
-
-    //Custom
-    LeakyRelu = 998 as isize,
-    Softmax   = 999 as isize,
-}
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum GpuMatrixEpilogueSettings{
@@ -177,8 +156,6 @@ pub fn load_layers(file_name: &str)->Vec<Layer>{
             _break_loop!( f.read_exact(dims.as_mut_slice()) );
 
 
-            //TODO I don't really like allocing a new vector. 
-            //I would rather convert the u8 dims to i32, do I don't think the lang can do this.
             layer.output_dims.extend_from_slice(&transmute::<_, &[i32]>(&dims[..])[..dims_size as _]);
         }
 
@@ -197,7 +174,7 @@ pub fn load_layers(file_name: &str)->Vec<Layer>{
             LayerTypei32::BatchNorm =>{
                 match_layertype_configs!(LayerType::BatchNorm, BatchNormConfig);
             },
-            _ =>panic!("unexpected layertype from save file."),
+            //_=>panic!("unexpected layertype from save file."),
         }
 
         let mut n_arrays = 0i32;

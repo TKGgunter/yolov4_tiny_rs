@@ -509,7 +509,7 @@ fn main() {
 
 
 
-    let mut dwdh_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Exp);
+    let dwdh_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Exp);
 
 
     let mut cpu_dwdh_anchors_13 = NumpyArray::new();
@@ -543,7 +543,7 @@ fn main() {
     let strides = [_nc*nxn*3, _nc*3,_nc,1];
 
     let mut conf_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
-    let mut prob_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
+    let prob_ttensor_13 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
     let from_prob_desc13 = construct_ndtensor_descriptors(&dims, &org_strides13);
     let prob_desc13 = construct_ndtensor_descriptors(&dims, &strides);
@@ -587,7 +587,7 @@ fn main() {
             (&(-0.5f32*(1.05-1.0)) as *const f32) as _,
     ));
 
-    let mut dwdh_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Exp);
+    let dwdh_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Exp);
 
 
     let mut cpu_dwdh_anchors_26 = NumpyArray::new();
@@ -617,7 +617,7 @@ fn main() {
     let dims = [nxn,nxn,3,_nc];
     let strides = [_nc*nxn*3, _nc*3,_nc,1];
     let mut conf_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
-    let mut prob_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
+    let prob_ttensor_26 = GpuTensorTensor::construct(&cutensor_handle, &dims, GpuTensorOps::Sigmoid);
 
     let from_prob_desc26 = construct_ndtensor_descriptors(&dims, &org_strides26);
     let prob_desc26 = construct_ndtensor_descriptors(&dims, &strides);
@@ -742,7 +742,7 @@ fn main() {
         ));
 
         {//Broadcast 
-            for i in 1..80 {
+            for i in 1..number_classes as isize {
                 dnn_error!(cudnnTransformTensor(
                   dnn_handle,
                   (&1f32 as *const _) as *const _,
@@ -803,7 +803,7 @@ fn main() {
         ));
 
         //Broadcasting
-        for i in 1..80 {
+        for i in 1..number_classes as isize {
             dnn_error!(cudnnTransformTensor(
               dnn_handle,
               (&1f32 as *const _) as *const _,
@@ -901,9 +901,9 @@ fn main() {
     cuda_error!(cudaDeviceSynchronize());
 
 
-    cuda_error!(cudaMemcpy(prob_final.data.as_ptr() as _, prob_ttensor_out_26.data, 4*26*26*3*80, 
+    cuda_error!(cudaMemcpy(prob_final.data.as_ptr() as _, prob_ttensor_out_26.data, 4*26*26*3*number_classes, 
                            cudaMemcpyKind::cudaMemcpyDeviceToHost));
-    cuda_error!(cudaMemcpy(prob_final.data.as_ptr().offset(4*26*26*3*80) as _, prob_ttensor_out_13.data, 4*13*13*3*80, 
+    cuda_error!(cudaMemcpy(prob_final.data.as_ptr().offset((4*26*26*3*number_classes) as _) as _, prob_ttensor_out_13.data, 4*13*13*3*number_classes, 
                            cudaMemcpyKind::cudaMemcpyDeviceToHost));
 
 
@@ -928,7 +928,7 @@ fn main() {
     for i in 0..mask.len(){
 
         for j in 0..number_classes{
-            let a = prob_final.get(i*80+j);
+            let a = prob_final.get(i*number_classes+j);
 
             if a > 0.5 {
                 mask[i] = true;
@@ -1189,7 +1189,7 @@ pub fn draw_char( canvas: &mut Image, character: char, mut x: i32, mut y: i32,
         let buffer = &mut canvas.buffer;
         let gwidth = canvas.w as isize;
         let gheight = canvas.h as isize;
-        let offset = (x as isize + y as isize * gwidth);
+        let offset = x as isize + y as isize * gwidth;
 
 
         let a = color[3];
