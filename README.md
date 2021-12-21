@@ -21,7 +21,7 @@ Once downloaded place the weights `yolov4_tiny_tg` in the data folder.
 
 
 # Run
-NOTE: while the linux version compiles it does not complete the inference phase. There is an issue with cutensor on linux that is currently being investigated.
+NOTE: This program requires the user to have a nvidia gpu with a compute core rating over 7.
 To run `cargo run (--release) <input_file_name> -o <optional_output_file_name>`.
 The output file will render any bounding boxes, class names and confidence scores to a copy of the original image.
 
@@ -30,7 +30,6 @@ The output file will render any bounding boxes, class names and confidence score
 
 # TODO
 - user defined score criteria
-- Fix linux implementation
 - implement macOs implementation
 - implement a sensible automatic deallocation systems, probably ref-counting.
 
